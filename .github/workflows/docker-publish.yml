@@ -72,7 +72,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [prepare]
     if: needs.prepare.outputs.services != '[]'
-    timeout-minutes: 30
+    # 45 rather than 30: the fork starts with a cold GHA layer cache, so the
+    # first build of each image pays for everything.
+    timeout-minutes: 45
     permissions:
       contents: read
       id-token: write
@@ -139,7 +141,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
+          # amd64 only. Every host this fork deploys to is x86, and building
+          # arm64 means emulating it under QEMU — which the two Next apps
+          # cannot finish inside the runner's limit on a cold cache: dashboard
+          # and status-page were both killed at exactly 30m, while the four
+          # Go/Bun images finished multi-arch in 5-6 minutes. Restore the second
+          # platform if an arm host ever needs one, and raise the timeout with it.
+          platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false

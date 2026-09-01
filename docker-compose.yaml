@@ -226,6 +226,15 @@ services:
             - PORT=3000
             - HOSTNAME=0.0.0.0
             - AUTH_TRUST_HOST=true
+            # Behind a reverse proxy, AUTH_TRUST_HOST alone gets the scheme from
+            # X-Forwarded-Proto but takes the HOST from HOSTNAME — which Next
+            # sets to 0.0.0.0 so it binds every interface. Absolute URLs then
+            # come out as https://0.0.0.0:3000, which is invisible until a
+            # logout redirects there. Set AUTH_URL to the public origin.
+            #
+            # Passed to the dashboard only, not through env_file: status-page
+            # serves many custom domains and must not be pinned to one.
+            - AUTH_URL=${AUTH_URL:-}
         depends_on:
             db-migrate:
                 condition: service_completed_successfully

@@ -6,6 +6,11 @@ import Link from "next/link";
 import type { SearchParams } from "nuqs/server";
 
 import { signIn } from "@/lib/auth";
+import {
+  githubEnabled,
+  googleEnabled,
+  magicLinkEnabled,
+} from "@/lib/auth/providers";
 
 import { LoginButton } from "./_components/login-button";
 import MagicLinkForm from "./_components/magic-link-form";
@@ -50,35 +55,38 @@ export default async function Page(props: {
         </p>
       ) : null}
       <div className="grid gap-4 p-4">
-        {process.env.NODE_ENV === "development" ||
-        process.env.SELF_HOST === "true" ? (
+        {magicLinkEnabled ? (
           <div className="grid gap-4">
             <MagicLinkForm />
             <Separator />
           </div>
         ) : null}
-        <form
-          action={async () => {
-            "use server";
-            await signIn("github", { redirectTo: redirectTo ?? undefined });
-          }}
-          className="w-full"
-        >
-          <LoginButton type="submit" provider="github">
-            Sign in with GitHub <GitHubIcon className="ml-2 h-4 w-4" />
-          </LoginButton>
-        </form>
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google", { redirectTo: redirectTo ?? undefined });
-          }}
-          className="w-full"
-        >
-          <LoginButton type="submit" provider="google">
-            Sign in with Google <GoogleIcon className="ml-2 h-4 w-4" />
-          </LoginButton>
-        </form>
+        {githubEnabled ? (
+          <form
+            action={async () => {
+              "use server";
+              await signIn("github", { redirectTo: redirectTo ?? undefined });
+            }}
+            className="w-full"
+          >
+            <LoginButton type="submit" provider="github">
+              Sign in with GitHub <GitHubIcon className="ml-2 h-4 w-4" />
+            </LoginButton>
+          </form>
+        ) : null}
+        {googleEnabled ? (
+          <form
+            action={async () => {
+              "use server";
+              await signIn("google", { redirectTo: redirectTo ?? undefined });
+            }}
+            className="w-full"
+          >
+            <LoginButton type="submit" provider="google">
+              Sign in with Google <GoogleIcon className="ml-2 h-4 w-4" />
+            </LoginButton>
+          </form>
+        ) : null}
         {process.env.AUTH_OIDC_ISSUER ? (
           <form
             action={async () => {

@@ -1,9 +1,9 @@
-import type { Transporter } from "nodemailer";
 import type React from "react";
 import { render } from "react-email";
 import { Resend } from "resend";
 
 import { env } from "./env";
+import { SmtpError, sendMail } from "./smtp";
 
 /**
  * Mail transport — Resend, or SMTP.
@@ -97,7 +97,6 @@ function resolveFrom(requested: string): string {
 }
 
 export class SmtpTransport implements MailTransport {
-  private transporter: Transporter | null = null;
   // Honouring Idempotency-Key matters because the retry path in client.tsx is
   // what fires after a transient failure: without it, one flaky send becomes
   // two deliveries of the same status report to every subscriber. Process-wide
@@ -106,32 +105,6 @@ export class SmtpTransport implements MailTransport {
   private readonly sent = new Map<string, { id: string; at: number }>();
   private readonly ttlMs = 24 * 60 * 60 * 1000;
 
-  private async client(): Promise<Transporter> {
-    if (!this.transporter) {
-      // nodemailer is CJS. Named-export interop through `await import()` usually
-      // works, but "usually" is not good enough for the module that delivers
-      // incident mail — it would fail at send time and nowhere else.
-      const mod = await import("nodemailer");
-      const nodemailer = mod.default ?? mod;
-      const port = env.SMTP_PORT ?? 587;
-      this.transporter = nodemailer.createTransport({
-        host: env.SMTP_HOST,
-        port,
-        // Implicit TLS on 465, STARTTLS everywhere else. Named rather than
-        // inferred so a relay on a non-standard port can still be told which.
-        secure: env.SMTP_SECURE ?? port === 465,
-        requireTLS: true,
-        auth:
-          env.SMTP_USER && env.SMTP_PASSWORD
-            ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD }
-            : undefined,
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 60_000,
-      });
-    }
-    return this.transporter;
-  }
 
   private replay(key: string | undefined): string | null {
     if (!key) return null;
@@ -172,24 +145,40 @@ export class SmtpTransport implements MailTransport {
       });
     }
 
-    const transporter = await this.client();
-    const info = await transporter.sendMail({
-      from: resolveFrom(payload.from),
-      to,
-      cc: list(payload.cc),
-      bcc: list(payload.bcc),
-      replyTo: list(payload.replyTo ?? payload.reply_to),
-      subject: payload.subject,
-      html,
-      text,
-      headers: payload.headers,
-    });
-    return String(info?.messageId ?? crypto.randomUUID());
+    const port = env.SMTP_PORT ?? 587;
+    const messageId = crypto.randomUUID();
+    await sendMail(
+      {
+        host: env.SMTP_HOST as string,
+        port,
+        // Implicit TLS on 465, STARTTLS everywhere else. Named rather than
+        // inferred so a relay on a non-standard port can still be told which.
+        secure: env.SMTP_SECURE ?? port === 465,
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASSWORD,
+      },
+      {
+        from: resolveFrom(payload.from),
+        to,
+        cc: list(payload.cc),
+        bcc: list(payload.bcc),
+        replyTo: list(payload.replyTo ?? payload.reply_to),
+        subject: payload.subject,
+        html,
+        text,
+        headers: payload.headers,
+        messageId,
+      },
+    );
+    return messageId;
   }
 
   private classify(err: unknown): SendError {
-    const e = err as { message?: string; responseCode?: number; permanent?: boolean };
-    const permanent = e?.permanent === true || (e?.responseCode !== undefined && e.responseCode >= 500);
+    const e = err as { message?: string; permanent?: boolean };
+    // A 5xx reply is a refusal that repeating cannot change; a 4xx, a timeout
+    // or a dropped connection is worth another attempt.
+    const permanent =
+      e?.permanent === true || (err instanceof SmtpError && err.code >= 500);
     return {
       name: permanent ? PERMANENT : TRANSIENT,
       message: e?.message ?? String(err),

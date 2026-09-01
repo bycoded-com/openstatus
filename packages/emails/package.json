@@ -20,7 +20,6 @@
     "@openstatus/utils": "workspace:*",
     "@t3-oss/env-core": "catalog:",
     "effect": "catalog:",
-    "nodemailer": "catalog:",
     "react": "catalog:",
     "react-email": "catalog:",
     "resend": "catalog:",
@@ -32,7 +31,6 @@
     "@std/expect": "jsr:^1.0.19",
     "@std/testing": "jsr:^1.0.19",
     "@types/node": "catalog:",
-    "@types/nodemailer": "catalog:",
     "@types/react": "catalog:",
     "typescript": "catalog:"
   }

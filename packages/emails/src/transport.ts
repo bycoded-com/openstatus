@@ -95,9 +95,25 @@ function resolveFrom(requested: string): string {
   return env.SMTP_FROM;
 }
 
+/**
+ * The slice of nodemailer this uses, described structurally rather than by
+ * depending on @types/nodemailer: two calls do not justify pulling in the whole
+ * surface, and the alternative — `any` — is a lint error here.
+ */
+interface MailInfo {
+  messageId?: string;
+}
+
+interface NodemailerTransporter {
+  sendMail(options: Record<string, unknown>): Promise<MailInfo>;
+}
+
+interface NodemailerModule {
+  createTransport(options: Record<string, unknown>): NodemailerTransporter;
+}
+
 export class SmtpTransport implements MailTransport {
-  // biome-ignore lint/suspicious/noExplicitAny: nodemailer types are optional
-  private transporter: any;
+  private transporter: NodemailerTransporter | null = null;
   // Honouring Idempotency-Key matters because the retry path in client.tsx is
   // what fires after a transient failure: without it, one flaky send becomes
   // two deliveries of the same status report to every subscriber. Process-wide
@@ -106,11 +122,12 @@ export class SmtpTransport implements MailTransport {
   private readonly sent = new Map<string, { id: string; at: number }>();
   private readonly ttlMs = 24 * 60 * 60 * 1000;
 
-  private async client() {
+  private async client(): Promise<NodemailerTransporter> {
     if (!this.transporter) {
-      const mod = await import("nodemailer");
-      // biome-ignore lint/suspicious/noExplicitAny: CJS interop
-      const nodemailer: any = (mod as any).default ?? mod;
+      const mod = (await import("nodemailer")) as unknown as NodemailerModule & {
+        default?: NodemailerModule;
+      };
+      const nodemailer: NodemailerModule = mod.default ?? mod;
       const port = env.SMTP_PORT ?? 587;
       this.transporter = nodemailer.createTransport({
         host: env.SMTP_HOST,

@@ -110,26 +110,9 @@ export async function GET(
       })),
     };
 
-    // A public status feed that a browser cannot read is half a feature: the
-    // obvious consumer is a badge on your own site or app, and that is a
-    // cross-origin fetch. The data is already served to anyone who asks — the
-    // password branch above returns unauthorized before reaching here — so the
-    // header grants nothing new. It is set ONLY for accessType "public";
-    // password and email-domain pages keep the same-origin restriction, which
-    // is what stops a browser on any site from reading a gated page's feed.
-    const isPublic = _page.accessType === "public";
-
     return new Response(JSON.stringify(res), {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        ...(isPublic
-          ? {
-              "Access-Control-Allow-Origin": "*",
-              // A consumer polling this every minute should be served by a
-              // cache, not by the database behind it.
-              "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
-            }
-          : {}),
       },
     });
   } catch (error) {

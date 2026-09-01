@@ -1,3 +1,4 @@
+import type { Transporter } from "nodemailer";
 import type React from "react";
 import { render } from "react-email";
 import { Resend } from "resend";
@@ -95,25 +96,8 @@ function resolveFrom(requested: string): string {
   return env.SMTP_FROM;
 }
 
-/**
- * The slice of nodemailer this uses, described structurally rather than by
- * depending on @types/nodemailer: two calls do not justify pulling in the whole
- * surface, and the alternative — `any` — is a lint error here.
- */
-interface MailInfo {
-  messageId?: string;
-}
-
-interface NodemailerTransporter {
-  sendMail(options: Record<string, unknown>): Promise<MailInfo>;
-}
-
-interface NodemailerModule {
-  createTransport(options: Record<string, unknown>): NodemailerTransporter;
-}
-
 export class SmtpTransport implements MailTransport {
-  private transporter: NodemailerTransporter | null = null;
+  private transporter: Transporter | null = null;
   // Honouring Idempotency-Key matters because the retry path in client.tsx is
   // what fires after a transient failure: without it, one flaky send becomes
   // two deliveries of the same status report to every subscriber. Process-wide
@@ -122,12 +106,13 @@ export class SmtpTransport implements MailTransport {
   private readonly sent = new Map<string, { id: string; at: number }>();
   private readonly ttlMs = 24 * 60 * 60 * 1000;
 
-  private async client(): Promise<NodemailerTransporter> {
+  private async client(): Promise<Transporter> {
     if (!this.transporter) {
-      const mod = (await import("nodemailer")) as unknown as NodemailerModule & {
-        default?: NodemailerModule;
-      };
-      const nodemailer: NodemailerModule = mod.default ?? mod;
+      // nodemailer is CJS. Named-export interop through `await import()` usually
+      // works, but "usually" is not good enough for the module that delivers
+      // incident mail — it would fail at send time and nowhere else.
+      const mod = await import("nodemailer");
+      const nodemailer = mod.default ?? mod;
       const port = env.SMTP_PORT ?? 587;
       this.transporter = nodemailer.createTransport({
         host: env.SMTP_HOST,

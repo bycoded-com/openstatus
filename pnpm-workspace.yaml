@@ -117,6 +117,7 @@ catalog:
   "@types/bcryptjs": 3.0.0
   "@types/dom-speech-recognition": 0.0.6
   "@types/node": 24.12.4
+  "@types/nodemailer": 8.0.1
   "@types/react": 19.2.15
   "@types/react-dom": 19.2.3
   "@types/sanitize-html": 2.16.1

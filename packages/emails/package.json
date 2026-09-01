@@ -32,6 +32,7 @@
     "@std/expect": "jsr:^1.0.19",
     "@std/testing": "jsr:^1.0.19",
     "@types/node": "catalog:",
+    "@types/nodemailer": "catalog:",
     "@types/react": "catalog:",
     "typescript": "catalog:"
   }

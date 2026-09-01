@@ -13,7 +13,7 @@ export const env = createEnv({
     TINY_BIRD_API_KEY: isSelfHost ? z.string().optional() : z.string(),
     TINYBIRD_URL: z.string().default("https://api.tinybird.co"),
     TINYBIRD_NOOP: z.stringbool().catch(false),
-    RESEND_API_KEY: z.string(),
+    RESEND_API_KEY: z.string().optional(),
     CRON_SECRET: z.string(),
     UNKEY_TOKEN: isSelfHost ? z.string().optional() : z.string(),
     UNKEY_API_ID: isSelfHost ? z.string().optional() : z.string(),

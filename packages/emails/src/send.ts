@@ -1,10 +1,16 @@
 import type React from "react";
 import { render } from "react-email";
-import { Resend } from "resend";
 
-import { env } from "./env";
+import { type MailTransport, createMailTransport } from "./transport";
 
-export const resend = new Resend(env.RESEND_API_KEY);
+// Constructed on first use rather than at module load: createMailTransport
+// throws when neither transport is configured, and an import-time throw would
+// take down a service that may never send an email.
+let transport: MailTransport | null = null;
+export const resend = (): MailTransport => {
+  if (!transport) transport = createMailTransport();
+  return transport;
+};
 
 export interface Emails {
   react: React.JSX.Element;
@@ -23,32 +29,28 @@ export type EmailHtml = {
 };
 export const sendEmail = async (email: Emails) => {
   if (process.env.NODE_ENV !== "production") return;
-  await resend.emails.send(email);
+  await resend().emails.send(email);
 };
 
 export const sendBatchEmailHtml = async (emails: EmailHtml[]) => {
   if (process.env.NODE_ENV !== "production") return;
-  await resend.batch.send(emails);
+  await resend().batch.send(emails);
 };
 
 // TODO: delete in favor of sendBatchEmailHtml
 export const sendEmailHtml = async (emails: EmailHtml[]) => {
   if (process.env.NODE_ENV !== "production") return;
 
-  await fetch("https://api.resend.com/emails/batch", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-    },
-    body: JSON.stringify(emails),
-  });
+  // Was a hand-rolled POST to api.resend.com, which ignored whatever transport
+  // the install is configured with — on an SMTP install it sent nothing and
+  // reported nothing.
+  await resend().batch.send(emails);
 };
 
 export const sendWithRender = async (email: Emails) => {
   if (process.env.NODE_ENV !== "production") return;
   const html = await render(email.react);
-  await resend.emails.send({
+  await resend().emails.send({
     ...email,
     html,
   });

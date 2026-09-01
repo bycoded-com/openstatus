@@ -8,7 +8,7 @@ export const env = createEnv({
     TINY_BIRD_API_KEY: z.string().min(1),
     TINYBIRD_URL: z.string().default("https://api.tinybird.co"),
     TINYBIRD_NOOP: z.stringbool().catch(false),
-    RESEND_API_KEY: z.string().min(1),
+    RESEND_API_KEY: z.string().optional(),
     QSTASH_CURRENT_SIGNING_KEY: z.string().min(1),
     QSTASH_NEXT_SIGNING_KEY: z.string().min(1),
     QSTASH_TOKEN: z.string().min(1),

@@ -17,7 +17,7 @@ export const env = createEnv({
     QSTASH_TOKEN: z.string(),
     NODE_ENV: z.string().prefault("development"),
     SUPER_ADMIN_TOKEN: z.string(),
-    RESEND_API_KEY: z.string(),
+    RESEND_API_KEY: z.string().optional(),
     AXIOM_TOKEN: z.string(),
     AXIOM_DATASET: z.string(),
     SLACK_SIGNING_SECRET: z.string().optional(),

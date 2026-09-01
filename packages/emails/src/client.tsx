@@ -3,7 +3,6 @@
 import { statusLabel } from "@openstatus/utils";
 import { type Duration, Effect, Schedule } from "effect";
 import { render } from "react-email";
-import { Resend } from "resend";
 
 import FollowUpEmail from "../emails/followup";
 import type { MonitorAlertProps } from "../emails/monitor-alert";
@@ -19,6 +18,7 @@ import type { StatusReportProps } from "../emails/status-report";
 import TeamInvitationEmail from "../emails/team-invitation";
 import type { TeamInvitationProps } from "../emails/team-invitation";
 import { monitorAlertEmail } from "../hotfix/monitor-alert";
+import { type MailTransport, createMailTransport } from "./transport";
 
 export function statusReportSubject(req: {
   status: StatusReportProps["status"];
@@ -53,13 +53,17 @@ function chunk<T>(array: T[], size: number): T[][] {
 }
 
 export class EmailClient {
-  public readonly client: Resend;
+  // Resend or SMTP, decided by the environment. Typed as the slice of the
+  // Resend client used below so every send method here is transport-agnostic.
+  public readonly client: MailTransport;
   // Base delay for the per-batch send retry. Overridable so tests can run the
   // retry path without the real ~1s exponential sleep.
   private readonly retryBackoff: Duration.DurationInput;
 
-  constructor(opts: { apiKey: string; retryBackoff?: Duration.DurationInput }) {
-    this.client = new Resend(opts.apiKey);
+  // apiKey is optional: an SMTP install has no Resend key at all, and every
+  // call site passes env.RESEND_API_KEY straight through.
+  constructor(opts: { apiKey?: string; retryBackoff?: Duration.DurationInput } = {}) {
+    this.client = createMailTransport({ apiKey: opts.apiKey });
     this.retryBackoff = opts.retryBackoff ?? "1000 millis";
   }
 

@@ -14,6 +14,11 @@ import {
   OIDCProvider,
   ResendProvider,
   WorkOSProvider,
+  githubEnabled,
+  googleAllowedDomains,
+  googleEnabled,
+  isGoogleProfileAllowed,
+  magicLinkEnabled,
 } from "./providers";
 import {
   authorizeSsoSignIn,
@@ -51,15 +56,17 @@ const {
 } = NextAuth({
   // debug: true,
   adapter,
+  // Every entry here is an open registration — nothing below denies a new
+  // user — so a provider is included only when it has been configured, and can
+  // be turned off explicitly even when it has. GitHub and Google used to be
+  // listed unconditionally, which meant adding a client id to try one of them
+  // silently opened the dashboard to every account on that provider.
   providers: [
-    GitHubProvider,
-    GoogleProvider,
+    ...(githubEnabled ? [GitHubProvider] : []),
+    ...(googleEnabled ? [GoogleProvider] : []),
     ...(process.env.AUTH_OIDC_ISSUER ? [OIDCProvider] : []),
     ...(hasWorkOS ? [WorkOSProvider] : []),
-    ...(process.env.NODE_ENV === "development" ||
-    process.env.SELF_HOST === "true"
-      ? [ResendProvider]
-      : []),
+    ...(magicLinkEnabled ? [ResendProvider] : []),
   ],
   callbacks: {
     async redirect({ url, baseUrl }) {
@@ -81,6 +88,17 @@ const {
       return baseUrl;
     },
     async signIn(params) {
+      // Domain restriction first, before anything is synced or linked: this is
+      // the only place a sign-in is refused, and AUTH_GOOGLE_ALLOWED_DOMAINS is
+      // meaningless if the account has already been created by the time it runs.
+      if (
+        params.account?.provider === "google" &&
+        googleAllowedDomains.length > 0 &&
+        !isGoogleProfileAllowed(params.profile ?? {})
+      ) {
+        return false;
+      }
+
       // We keep updating the user info when we loggin in
 
       if (params.account?.provider === "google") {

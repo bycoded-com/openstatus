@@ -11,6 +11,7 @@
   "DwevKz": "An unexpected error occurred during sign in",
   "xOqgA3": "Access Restricted",
   "U2RCyj": "This status page is only accessible from specific IPv4 networks. Reach out to your network administrator to get access.",
+  "dcqxLR": "last day",
   "Ppx673": "Reports",
   "JCMXwP": "Maintenances",
   "I7B7SH": "No maintenances found",
@@ -39,7 +40,7 @@
   "i2FBWn": "checks",
   "G5Lt80": "The aggregated latency from all active regions based on different quantiles.",
   "YV7rXP": "Latency by Region",
-  "6zzIEm": "Region latency per p75 quantile, sorted by slowest region. Compare up to 6 regions.",
+  "5t8e2q": "Region latency per p75 quantile, sorted by fastest region. Compare up to 6 regions.",
   "6pCzRs": "Total Uptime",
   "zL23+z": "Main values of uptime and availability, transparent.",
   "gjBiyj": "Loading...",
@@ -137,6 +138,5 @@
   "waUHa4": "SSH",
   "cVqFq/": "Get email notifications whenever a report has been created or resolved",
   "gczcC5": "Subscribe",
-  "45YlLU": "Validate your email to receive updates and you are all set.",
-  "dcqxLR": "last day"
+  "45YlLU": "Validate your email to receive updates and you are all set."
 }

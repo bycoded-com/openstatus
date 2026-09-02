@@ -312,7 +312,7 @@ export default function Page() {
                 <StatusChartTitle>{t("Latency by Region")}</StatusChartTitle>
                 <StatusChartDescription>
                   {t(
-                    "Region latency per p75 quantile, sorted by slowest region. Compare up to 6 regions.",
+                    "Region latency per p75 quantile, sorted by fastest region. Compare up to 6 regions.",
                   )}
                 </StatusChartDescription>
               </StatusChartHeader>

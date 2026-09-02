@@ -11,6 +11,10 @@ import {
 import { Skeleton } from "@openstatus/ui/components/ui/skeleton";
 import { cn } from "@openstatus/ui/lib/utils";
 import { useState } from "react";
+
+// The legend caps how many series can be active at once; the initial selection
+// reads the same constant so the two cannot drift apart.
+const MAX_ACTIVE_REGIONS = 6;
 import {
   CartesianGrid,
   Line,
@@ -53,9 +57,13 @@ function getChartConfig(
       : [];
 
   return regions
+    // Fastest first. Slowest-first put the most distant probe at the head of
+    // the legend and made it the series a reader anchors on, which is the
+    // least representative number on the chart: it is mostly the distance to
+    // wherever that probe is rented.
     .sort((a, b) => {
       return (
-        avg(data.map((item) => item[b])) - avg(data.map((item) => item[a]))
+        avg(data.map((item) => item[a])) - avg(data.map((item) => item[b]))
       );
     })
     .map((region, index) => ({
@@ -103,9 +111,14 @@ export function ChartLineRegions({
     data.length > 0
       ? getChartConfig(data)
       : getChartConfigDefault(defaultRegions ?? []);
+  // Every region active, not the first two. With the legend sorted fastest
+  // first, showing two would show the two fastest and silently hide the ones a
+  // reader most wants to compare against. MAX_ACTIVE_REGIONS still bounds it,
+  // because the chart runs out of distinguishable colours before it runs out
+  // of room.
   const [activeSeries, setActiveSeries] = useState<
     Array<keyof typeof chartConfig>
-  >(Object.keys(chartConfig).slice(0, 2));
+  >(Object.keys(chartConfig).slice(0, MAX_ACTIVE_REGIONS));
 
   const annotation = Object.keys(chartConfig).reduce(
     (acc, region) => {
@@ -203,7 +216,7 @@ export function ChartLineRegions({
               active={activeSeries}
               annotation={annotation}
               tooltip={tooltip}
-              maxActive={6}
+              maxActive={MAX_ACTIVE_REGIONS}
               className="justify-start overflow-x-scroll ps-1 pt-1 font-mono"
             />
           }

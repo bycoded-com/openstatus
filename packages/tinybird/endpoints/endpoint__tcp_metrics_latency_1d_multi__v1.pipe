@@ -5,19 +5,40 @@ SQL >
 
 %
 SELECT
-    toStartOfInterval(
-        toDateTime(cronTimestamp / 1000), INTERVAL {{ Int64(interval, 30) }} MINUTE
-    ) as h,
+    -- min across regions, not a quantile pooled over all of them.
+    --
+    -- Pooling makes every monitor read as the average distance to the probe
+    -- fleet: with one probe in the same city and four on other continents, a
+    -- service answering in 3ms reported a p75 of 650ms. That is a true fact
+    -- about where the probes are rented and a false one about the service.
+    -- Taking the best region's percentile answers the question a reader is
+    -- actually asking — how fast is this for someone near it.
+    h,
     monitorId,
     toUnixTimestamp64Milli(toDateTime64(h, 3)) as timestamp,
-    round(quantile(0.50)(latency)) as p50Latency,
-    round(quantile(0.75)(latency)) as p75Latency,
-    round(quantile(0.90)(latency)) as p90Latency,
-    round(quantile(0.95)(latency)) as p95Latency,
-    round(quantile(0.99)(latency)) as p99Latency
-FROM mv__tcp_1d__v0
-WHERE
+    round(min(p50)) as p50Latency,
+    round(min(p75)) as p75Latency,
+    round(min(p90)) as p90Latency,
+    round(min(p95)) as p95Latency,
+    round(min(p99)) as p99Latency
+FROM
+(
+    SELECT
+        toStartOfInterval(
+            toDateTime(cronTimestamp / 1000), INTERVAL {{ Int64(interval, 30) }} MINUTE
+        ) as h,
+        monitorId,
+        region,
+        quantile(0.50)(latency) as p50,
+        quantile(0.75)(latency) as p75,
+        quantile(0.90)(latency) as p90,
+        quantile(0.95)(latency) as p95,
+        quantile(0.99)(latency) as p99
+    FROM mv__tcp_1d__v0
+    WHERE
     monitorId IN {{ Array(monitorIds, 'String', '4433') }}
+    GROUP BY h, monitorId, region
+)
 GROUP BY h, monitorId
 ORDER BY h DESC
 

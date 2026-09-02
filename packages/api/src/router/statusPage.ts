@@ -5,6 +5,7 @@ import {
   page,
   pageComponent,
   pageConfigurationSchema,
+  privateLocation,
   privateLocationToMonitors,
   selectMaintenancePageSchema,
   selectPageComponentWithMonitorRelation,
@@ -1267,11 +1268,38 @@ export const statusPageRouter = createTRPCRouter({
         { data: [] },
       ];
 
+      // A private location reports its numeric id as the region, so the chart
+      // legend read "1", "2", "3" — which tells a visitor nothing and cannot be
+      // matched against anything they know. Cloud regions carry a code the UI
+      // already resolves to a city, so only the private ones need substituting,
+      // and they are substituted here rather than in the client because the id
+      // to name mapping is workspace data the page should not have to fetch
+      // separately.
+      const privateLocationRegions = regions.data?.length
+        ? await opts.ctx.db
+            .select({ id: privateLocation.id, name: privateLocation.name })
+            .from(privateLocation)
+            .where(eq(privateLocation.workspaceId, _page.workspaceId))
+            .all()
+        : [];
+      const regionNames = new Map(
+        privateLocationRegions.map((l) => [String(l.id), l.name]),
+      );
+      const namedRegions = regionNames.size
+        ? {
+            ...regions,
+            data: regions.data?.map((row) => ({
+              ...row,
+              region: regionNames.get(String(row.region)) ?? row.region,
+            })),
+          }
+        : regions;
+
       return {
         ...selectPublicMonitorSchema.parse(_monitor),
         data: {
           latency,
-          regions,
+          regions: namedRegions,
           uptime,
         },
       };

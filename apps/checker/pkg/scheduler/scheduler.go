@@ -3,6 +3,7 @@ package scheduler
 import (
 	"bytes"
 	"context"
+	"hash/fnv"
 	"log"
 	"sync"
 	"time"
@@ -36,6 +37,30 @@ type MonitorManager struct {
 // drops the running one first when the config changed: a task captures its
 // monitor when it is created, so an edited monitor would otherwise keep
 // checking with the config it had on the probe's first fetch.
+// startAfter spreads a monitor's checks across its own interval.
+//
+// Every monitor on the same periodicity would otherwise fire on the same tick,
+// and a probe running twenty-odd of them starts that many TLS handshakes in the
+// same millisecond. On a small box the crypto serialises and every check
+// reports the queue as if it were the network: measured on a 1 vCPU probe,
+// sequentially a check took 21ms and twenty-two at once took a median of 321ms.
+// A one-minute load average shows 0.01 throughout, so nothing about the host
+// looks busy — the latency is simply wrong, and wrong in the direction that
+// makes a healthy service look slow.
+//
+// The offset is derived from the monitor id rather than random, so it is stable
+// across restarts: a probe that reshuffled on every deploy would move every
+// monitor's latency series for reasons that have nothing to do with the target.
+func startAfter(id string, interval time.Duration) time.Time {
+	if interval <= 0 {
+		return time.Now()
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(id))
+	offset := time.Duration(h.Sum32()%uint32(interval/time.Millisecond)) * time.Millisecond
+	return time.Now().Add(offset)
+}
+
 func (mm *MonitorManager) shouldSchedule(id string, monitor proto.Message) bool {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
@@ -87,7 +112,7 @@ func (mm *MonitorManager) UpdateMonitors(ctx context.Context) {
 			Interval:          interval,
 			RunOnce:           false,
 			RunSingleInstance: true,
-			// StartAfter: time.Duration(1) * time.Second,
+			StartAfter:        startAfter(m.Id, interval),
 			ErrFunc: func(e error) {
 				log.Printf("An error occurred when executing task  %s", e)
 			},
@@ -143,9 +168,9 @@ func (mm *MonitorManager) UpdateMonitors(ctx context.Context) {
 
 		interval := time.Duration(intervalToSecond(m.Periodicity)) * time.Second
 		task := tasks.Task{
-			Interval: interval,
-			RunOnce:  false,
-			// StartAfter: time.Now().Add(5 * time.Millisecond),
+			Interval:          interval,
+			RunOnce:           false,
+			StartAfter:        startAfter(m.Id, interval),
 			RunSingleInstance: true,
 			ErrFunc: func(e error) {
 				log.Printf("An error occurred when executing TCP task  %s", e)
@@ -198,9 +223,9 @@ func (mm *MonitorManager) UpdateMonitors(ctx context.Context) {
 
 		interval := time.Duration(intervalToSecond(m.Periodicity)) * time.Second
 		task := tasks.Task{
-			Interval: interval,
-			RunOnce:  false,
-			// StartAfter: time.Now().Add(5 * time.Millisecond),
+			Interval:          interval,
+			RunOnce:           false,
+			StartAfter:        startAfter(m.Id, interval),
 			RunSingleInstance: true,
 			FuncWithTaskContext: func(ctx tasks.TaskContext) error {
 
@@ -252,6 +277,7 @@ func (mm *MonitorManager) UpdateMonitors(ctx context.Context) {
 				Interval:          interval,
 				RunOnce:           false,
 				RunSingleInstance: true,
+				StartAfter:        startAfter(m.Id, interval),
 				FuncWithTaskContext: func(ctx tasks.TaskContext) error {
 
 					monitor := m
@@ -307,6 +333,7 @@ func (mm *MonitorManager) UpdateMonitors(ctx context.Context) {
 				Interval:          interval,
 				RunOnce:           false,
 				RunSingleInstance: true,
+				StartAfter:        startAfter(m.Id, interval),
 				FuncWithTaskContext: func(ctx tasks.TaskContext) error {
 
 					monitor := m

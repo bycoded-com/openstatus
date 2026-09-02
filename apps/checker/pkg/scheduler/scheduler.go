@@ -51,13 +51,26 @@ type MonitorManager struct {
 // The offset is derived from the monitor id rather than random, so it is stable
 // across restarts: a probe that reshuffled on every deploy would move every
 // monitor's latency series for reasons that have nothing to do with the target.
+//
+// It is spread over a few seconds rather than over the whole interval. Spreading
+// across the interval would delay a monitor's FIRST result by up to that
+// interval — an hour, for an hourly check — which trades a latency artefact for
+// a blank chart and a slow answer to "did the thing I just added work". A
+// handshake costs on the order of 20ms of CPU, so a few seconds is already
+// enough room for tens of monitors to take their turn without queueing.
+const spreadWindow = 5 * time.Second
+
 func startAfter(id string, interval time.Duration) time.Time {
-	if interval <= 0 {
+	window := spreadWindow
+	if interval > 0 && interval < window {
+		window = interval
+	}
+	if window <= 0 {
 		return time.Now()
 	}
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(id))
-	offset := time.Duration(h.Sum32()%uint32(interval/time.Millisecond)) * time.Millisecond
+	offset := time.Duration(h.Sum32()%uint32(window/time.Millisecond)) * time.Millisecond
 	return time.Now().Add(offset)
 }
 

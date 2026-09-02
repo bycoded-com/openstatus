@@ -160,7 +160,20 @@ func TestMonitorManager_StartAndStopJobs_WithJobRunner(t *testing.T) {
 	}
 
 	mm.UpdateMonitors(ctx)
-	time.Sleep(12 * time.Second) // allow jobs to run
+
+	// Wait for the work rather than sleeping a fixed budget. The first run
+	// lands at StartAfter+Interval — the scheduler waits out StartAfter and
+	// only then arms the interval timer — so a monitor's first check is its
+	// interval plus its spread offset. A fixed sleep encodes that sum as a
+	// constant and fails the day either part changes; this polls instead, and
+	// finishes as soon as both jobs have run.
+	deadline := time.Now().Add(25 * time.Second)
+	for time.Now().Before(deadline) {
+		if jobRunner.HTTPJobCalled.Load() && jobRunner.TCPJobCalled.Load() {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	if !jobRunner.HTTPJobCalled.Load() == true {
 		t.Errorf("expected HTTPJob to be called")
